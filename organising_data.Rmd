@@ -1,0 +1,327 @@
+---
+title: "OrganizingData_arienne"
+output: word_document
+---
+
+#Organizing dolphins data
+```{r setup, include=FALSE}
+library(readr)
+library(dplyr)
+load("cpod_df_20180701_20220801_week_hour.Rdata")
+df_dol <- cpod1_df[cpod1_df$species=="Dolphins",]
+
+df_dol$station<- as.character(df_dol$station)
+
+#rename stations according to seabass and cod df
+df_dol$station[df_dol$station=="bpns-Reefballs Belwind"] <- "bpns-Belwindreefballs-CPOD"
+df_dol$station[df_dol$station=="bpns-Reefballs-cpower"] <- "bpns-Cpowerreefballs-CPOD"
+df_dol$station[df_dol$station=="bpns-Nautica Ena"] <- "bpns-Nauticaena"
+df_dol$station[df_dol$station=="bpns-G88"] <- "bpns-G-88"
+df_dol$station[df_dol$station=="AP_bpns-Grafton"] <- "bpns-Grafton"
+df_dol$station[df_dol$station=="AP_bpns-Birkenfels"] <- "bpns-Birkenfels"
+df_dol$station[df_dol$station=="AP-bpns-Birkenfels"] <- "bpns-Birkenfels"
+#remove some stations
+df_dol <- df_dol[!(df_dol$station=="AP-bpns-Cpower" | df_dol$station=="AP-bpns-Belwind"),]
+#filter dates 
+df_dol <- df_dol %>% 
+  filter(time > as.POSIXct("2018-10-09 00:00:00", tz="UTC") & time < as.POSIXct("2021-12-03 13:00:00", tz="UTC"))
+
+df_dol <- df_dol[, c("time","dph","station","number_clicks_filtered")]
+colnames(df_dol)[3] <- "location_col"
+colnames(df_dol)[2] <- "dol_DPH"
+colnames(df_dol)[4] <- "dol_clicks_filtered"
+colnames(df_dol)[1] <- "day_time"
+
+df_dol <- as.data.frame(df_dol)
+
+df_dol2 <- df_dol %>%
+  group_by(location_col,day_time) %>% 
+  summarise(dol_DPH = if_else(sum(dol_DPH)>0,1,0), dol_clicks_filtered = sum(dol_clicks_filtered)) %>% arrange(location_col)
+
+#check if there are duplicates
+x <- df_dol2[duplicated(df_dol2), ]
+
+write_csv(df_dol2, "DPH_dolphins.csv")
+
+```
+#Organizing porpoise data
+
+
+```{r setup, include=FALSE}
+library(readr)
+library(dplyr)
+df_porpoise00 <- cpod1_df[cpod1_df$species=="NBHF",]
+df_porpoise00 <- write_csv(df_porpoise00,"DPH_porpoise.csv")
+df_porpoise00 <- read_csv("DPH_porpoise.csv")
+
+#extract stations
+stn_list <- df_porpoise0[!duplicated(df_porpoise0[,c('station','latitude','longitude')]),]
+stn_list <- stn_list[,c('station','latitude','longitude')]
+write_csv(stn_list, "csv/stn_list.csv")
+#rename stations according to seabass and cod df
+df_porpoise0$station[df_porpoise0$station=="bpns-Reefballs Belwind"] <- "bpns-Belwindreefballs-CPOD"
+df_porpoise0$station[df_porpoise0$station=="bpns-Reefballs-cpower"] <- "bpns-Cpowerreefballs-CPOD"
+df_porpoise0$station[df_porpoise0$station=="bpns-Nautica Ena"] <- "bpns-Nauticaena"
+df_porpoise0$station[df_porpoise0$station=="bpns-G88"] <- "bpns-G-88"
+df_porpoise0$station[df_porpoise0$station=="AP_bpns-Grafton"] <- "bpns-Grafton"
+df_porpoise0$station[df_porpoise0$station=="AP_bpns-Birkenfels"] <- "bpns-Birkenfels"
+df_porpoise0$station[df_porpoise0$station=="AP-bpns-Birkenfels"] <- "bpns-Birkenfels"
+#remove some stations
+df_porpoise0 <- df_porpoise0[!(df_porpoise0$station=="AP-bpns-Cpower" | df_porpoise0$station=="AP-bpns-Belwind"),]
+#filter dates 
+df_porpoise0 <- df_porpoise0 %>% 
+  filter(time > as.POSIXct("2018-10-09 00:00:00", tz="UTC"))
+
+df_porpoise0 <- df_porpoise0[, c("time","hour","dph","station","number_clicks_filtered")]
+colnames(df_porpoise0)[4] <- "location_col"
+colnames(df_porpoise0)[3] <- "por_DPH"
+colnames(df_porpoise0)[5] <- "por_clicks_filtered"
+colnames(df_porpoise0)[1] <- "day_time"
+
+df_porpoise0 <- as.data.frame(df_porpoise0)
+
+df_porpoise2 <- df_porpoise0 %>%
+  group_by(location_col,day_time) %>% 
+  summarise(por_DPH = if_else(sum(por_DPH)>0,1,0), por_clicks_filtered = sum(por_clicks_filtered)) %>% arrange(location_col)
+
+#check if there are duplicates
+x <- df_porpoise2[duplicated(df_porpoise2), ]
+
+write_csv(df_porpoise2, "DPH_porpoise.csv")
+
+```
+
+#ORGANIZING FISH DATA
+
+```{r pressure, echo=FALSE}
+
+library(reshape2)
+library(readr)
+library(dplyr)
+library(data.table)
+
+detections <- read_csv("csv/detections.csv")
+
+detections2 = detections %>% 
+  group_by(location_col,year,month,day,hour) %>% 
+  summarise(cod_id_count = length(unique(animal_id[scientific_name == "Gadus morhua"])),
+            sb_id_count = length(unique(animal_id[scientific_name == "Dicentrarchus labrax"])),
+            animal_ids = paste(unique(animal_id), collapse = " ", sep = ","),
+            cod_det_count = length(scientific_name[scientific_name == "Gadus morhua"]), 
+            sb_det_count =  length(scientific_name[scientific_name == "Dicentrarchus labrax"]))
+  
+detections2 <- detections2 %>% 
+  mutate(cod_id_count = if_else(cod_id_count > 0, 1, NA_real_),
+         sb_id_count = if_else(sb_id_count > 0, 1, NA_real_), 
+         cod_det_count = if_else(cod_det_count > 0, 1, NA_real_),
+         sb_det_count = if_else(sb_det_count > 0, 1, NA_real_),
+         cod_DPH = if_else(cod_det_count > 0, 1, NA_real_),
+         sb_DPH = if_else(sb_det_count > 0, 1, NA_real_),
+         day_time = as.POSIXct(paste0(paste(year,month,day,sep="-")," ", hour,":00:00" ), tz="UTC"))
+
+#---create dataframe of all hours when tags were active
+#summarize tags
+tag_sum <- tags %>% group_by(tag_serial_number) %>% summarise(battery_estimated_life = unique(battery_estimated_life))
+an_sub <- an %>% filter(tag_serial_number %in% tag_sum$tag_serial_number, scientific_name!="Mustelus asterias")
+an_sub$battery_estimated_life <- tag_sum$battery_estimated_life[match(an_sub$tag_serial_number, tag_sum$tag_serial_number)]
+#make date sequence of tag activity
+tag_active_hours <- data.frame()
+
+for (i in 1:nrow(an_sub)){
+  x <- data.frame(seq(from=an_sub[i,21], to=an_sub[i,21] + an_sub[i,67]* (1*24*60*60), by="hour"))
+  x$animal_id <- an_sub[i,1]
+  x$species <- an_sub[i,8]
+  tag_active_hours <- rbind(tag_active_hours, x)
+  print(i)}
+  
+colnames(tag_active_hours)[1] <- "day_time"
+tag_active_hours <- tag_active_hours %>% 
+                        group_by(day_time) %>% 
+                        summarise(animal_ids = paste(unique(animal_id), collapse = " ", sep = ","),
+                                  species = paste(unique(species), collapse = " ", sep = ","))
+                        
+write_csv(tag_active_hours,"csv/tag_active_hours.csv")
+
+#---add tag activity to deploy
+deploy <- as.data.frame(read_csv("csv/reclocations.csv")) #all dates when deployments were active by hour: output from https://github.com/JolienGoossens/BelTelSSM/blob/main/src/features/1_Daily_deploy.R
+deploy$Date <- as.POSIXct(trunc(deploy$Date, "hours"), tz="UTC")
+tag_active_hours <- as.data.frame(tag_active_hours)
+deploy <- deploy %>%
+  mutate(tag_activity = if_else(Date %in% tag_active_hours$day_time,"YES", "NO"),
+          animal_ids = tag_active_hours$animal_ids[match(Date, tag_active_hours$day_time)],
+          tagged_animals = tag_active_hours$species[match(Date, tag_active_hours$day_time)]) 
+
+#change colnames & station names
+colnames(deploy)[1]="location_col"
+deploy$location_col[deploy$location_col=="bpns-BelwindReefballs"] <- "bpns-Belwindreefballs-CPOD"
+deploy$location_col[deploy$location_col=="bpns-BIRKENFELS"] <- "bpns-Birkenfels"
+deploy$location_col[deploy$location_col=="bpns-buitenratel"] <- "bpns-Buitenratel"
+deploy$location_col[deploy$location_col=="bpns-CPowerReefballs"] <- "bpns-Cpowerreefballs-CPOD"
+deploy$fish_rec_active <- "YES"
+write_csv(deploy, "csv/deploy_tag_activity.csv")
+
+#---merge deploy_tag_activity dates with detections
+detections2$tag_activity <- "YES"
+detections2$fish_rec_active <- "YES"
+detections2$tagged_animals <- case_when(detections2$cod_DPH ==1 | is.na(detections2$sb_DPH) ~ "Gadus morhua", 
+                                        detections2$sb_DPH ==1 | is.na(detections2$cod_DPH) ~ "Dicentrarchus labrax")
+detections0 <- deploy %>% subset(select = c(1,4,9,10,11))
+
+colnames(detections0)[2] <- "day_time"
+
+#add other columns
+detections0$cod_id_count = 0
+detections0$sb_id_count = 0
+detections0$cod_det_count = 0
+detections0$sb_det_count = 0
+detections0$cod_DPH = 0
+detections0$sb_DPH = 0
+
+#---replace zeroes with NA if no fish tagged on that day
+detections0 <- detections0 %>% 
+  mutate(cod_DPH = if_else(cod_DPH ==0 & tagged_animals == "Gadus morhua" | tagged_animals == "Dicentrarchus labrax Gadus morhua", cod_DPH, NA_real_),
+         sb_DPH = if_else(sb_DPH ==0 & tagged_animals == "Dicentrarchus labrax" | tagged_animals == "Dicentrarchus labrax Gadus morhua", sb_DPH, NA_real_),
+         cod_id_count = if_else(is.na(cod_DPH), NA_real_,cod_id_count),
+         cod_det_count = if_else(is.na(cod_DPH), NA_real_,cod_det_count),
+         sb_id_count = if_else(is.na(sb_DPH), NA_real_,sb_id_count),
+         sb_det_count = if_else(is.na(sb_DPH), NA_real_,sb_det_count)
+         )
+
+detections2 <- as.data.frame(detections2)
+
+
+#---merge datasets
+gc()
+
+#check if all detections2 dates are in detections0
+x <- detections2[detections2$day_time %!in% detections0$day_time,]
+
+detections_merge0 <- rbind(detections2,detections0)
+detections_merge <- detections_merge0 %>% group_by(location_col, day_time) %>%
+                    summarise(fish_rec_active = "YES",
+                              tag_activity = paste(unique(tag_activity), collapse = " ", sep = ","),
+                              tagged_animals = paste(na.omit(unique(tagged_animals)), collapse = " ", sep = ","),
+                              animal_ids = paste(unique(animal_ids), collapse = " ", sep = ","),
+                              cod_id_count = if_else(all(is.na(cod_id_count)), NA_real_, sum(cod_id_count, na.rm =TRUE)),
+                              sb_id_count = if_else(all(is.na(sb_id_count)), NA_real_, sum(sb_id_count, na.rm =TRUE)),
+                              cod_det_count = if_else(all(is.na(cod_det_count)), NA_real_, sum(cod_det_count, na.rm =TRUE)),
+                              sb_det_count =  if_else(all(is.na(sb_det_count)), NA_real_, sum(sb_det_count, na.rm =TRUE)),
+                              cod_DPH = if_else(all(is.na(cod_DPH)), NA_real_, sum(cod_DPH, na.rm =TRUE)),
+                              sb_DPH = if_else(all(is.na(sb_DPH)), NA_real_, sum(sb_DPH, na.rm =TRUE))) %>% 
+                    mutate(cod_DPH = if_else(cod_DPH>0,1,cod_DPH),
+                            sb_DPH = if_else(sb_DPH>0,1,sb_DPH))
+      
+write_csv(detections_merge, "DPH_cod_sb.csv")
+
+```
+
+#Merging datasets
+```{r}
+
+library(dplyr)
+library(readr)
+
+detections_merge <- read_csv("DPH_cod_sb.csv")
+df_dol <- read_csv("DPH_dolphins.csv")
+df_porpoise2 <- read_csv("DPH_porpoise.csv")
+
+#merge porpoise data
+df_porpoise2 <- as.data.frame(df_porpoise2)
+rm(df_merged)
+df_merged <- merge( detections_merge, df_porpoise2[ , c("location_col", "day_time","por_DPH","por_clicks_filtered")],
+                    by=c("location_col","day_time"), all.x=TRUE, all.y=TRUE)
+
+#merge dolphin data
+df_merged <- merge(df_merged, df_dol[ , c("location_col", "day_time","dol_DPH","dol_clicks_filtered")], by=c("location_col","day_time"), all.x=TRUE, all.y=TRUE)
+
+#filter dates 
+df_merged <- df_merged %>% 
+  filter(day_time > as.POSIXct("2018-10-09 03:00:00", tz="UTC"))%>% 
+  filter(day_time < as.POSIXct("2021-12-03 13:00:00", tz="UTC"))
+
+#check if there are duplicates
+x <- df_merged[duplicated(df_merged[,1:2]), ]
+
+#---co-occurrence column
+df_merged <- df_merged %>% mutate(cooccur_dol_por = if_else(df_merged$dol_DPH ==1 & df_merged$por_DPH ==1,1,0),
+                                  cooccur_sb_por = if_else(df_merged$sb_DPH ==1 & df_merged$por_DPH ==1,1,0),
+                                  cooccur_cod_por = if_else(df_merged$cod_DPH ==1 & df_merged$por_DPH ==1,1,0),
+                                  cooccur_cod_dol_por = if_else(df_merged$cod_DPH ==1 & df_merged$dol_DPH ==1 & df_merged$por_DPH ==1,1,0))
+
+
+#---add seasons
+season <- as.data.frame(read_csv("seasons.csv"))
+
+df_merged <- df_merged %>%
+  mutate(Season = case_when (day_time >= season[1,6]  & day_time < season[2,6] ~ season[1,1],
+                              day_time >= season[2,6]  & day_time < season[3,6] ~ season[2,1],
+                              day_time >= season[3,6]  & day_time < season[4,6] ~ season[3,1],
+                              day_time >= season[4,6]  & day_time < season[5,6] ~ season[4,1],
+                              day_time >= season[5,6]  & day_time < season[6,6] ~ season[5,1],
+                              day_time >= season[6,6]  & day_time < season[7,6] ~ season[6,1],
+                              day_time >= season[7,6]  & day_time < season[8,6] ~ season[7,1],
+                              day_time >= season[8,6]  & day_time < season[9,6] ~ season[8,1],
+                              day_time >= season[9,6]  & day_time < season[10,6] ~ season[9,1],
+                              day_time >= season[10,6]  & day_time < season[11,6] ~ season[10,1],
+                              day_time >= season[11,6]  & day_time < season[12,6] ~ season[11,1],
+                              day_time >= season[12,6]  & day_time < season[13,6] ~ season[12,1],
+                              day_time >= season[13,6]  & day_time < season[14,6] ~ season[13,1],
+                              day_time >= season[14,6]  & day_time < season[15,6] ~ season[14,1],
+                              day_time >= season[15,6]  & day_time < season[16,6] ~ season[15,1], 
+                              day_time >= season[16,6]  & day_time < as.POSIXct("2022-03-20 15:00:00", format = "%Y-%m-%d %H:%M:%S", tz="UTC") ~ season[16,1]))
+
+#add lat long
+stn_list <- read_csv("csv/stn_list.csv")
+df_merged$latitude <- stn_list$latitude[match(df_merged$location_col,stn_list$location_col)]
+df_merged$longitude <- stn_list$longitude[match(df_merged$location_col,stn_list$location_col)]
+
+#---add diurnal for all: TOOK ABOUT 3 HOURS
+library(StreamMetabolism)        
+
+df_merged <- df_merged %>%
+  mutate(date = as.POSIXct(paste(df_merged$year, df_merged$month, df_merged$day, sep ="/"), tz="UTC"))
+for (i in 1:nrow(df_merged)){
+  sun_time <- sunrise.set(df_merged[i,2], df_merged[i,3], as.POSIXct(df_merged[i,21], tz="UTC") , timezone = "UTC", num.days = 1)
+  df_merged[i,22] = sun_time$sunrise
+  df_merged[i,23] = sun_time$sunset
+  print(i)
+}
+
+#---add diurnal from csv for faster processing, process sunrise sunset time if date not in csv
+diurnal <- read_csv("csv/sunrise_sunset.csv")
+
+df_merged$sunrise <- diurnal$sunrise[match(df_merged$day_time, diurnal$day_time)]
+df_merged$sunset <- diurnal$sunset[match(df_merged$day_time, diurnal$day_time)]
+
+for (i in 1:nrow(df_merged)){ if(is.na(df_merged[i,24])){
+  sun_time <- sunrise.set(df_merged[i,22], df_merged[i,23], df_merged[i,2], timezone = "UTC", num.days = 1)
+  df_merged[i,24] <- sun_time$sunrise
+  df_merged[i,25] <- sun_time$sunset
+  print(i)
+}}
+
+df_merged <- df_merged %>%
+  mutate(Diurnal = case_when (day_time >= sunrise  & day_time <= sunset ~ "day", TRUE ~ "night"))
+
+#---for percentages: species_alone = 1 if alone and other species are 0 or NA
+
+alone <- Vectorize(function(x, a, b, c){
+  if_else(x==1 & isTRUE(a!=1 | is.na(a)) & isTRUE(b!=1 | is.na(b)) & isTRUE(c!=1 | is.na(c)), 1, 0)
+})
+  
+df_merged <- df_merged %>% mutate(sb_alone = alone(sb_DPH, cod_DPH, por_DPH, dol_DPH),
+                                  cod_alone = alone(cod_DPH, sb_DPH, por_DPH, dol_DPH),
+                                  por_alone = alone(por_DPH, sb_DPH, cod_DPH, dol_DPH),
+                                  dol_alone = alone(dol_DPH, sb_DPH, cod_DPH, por_DPH))
+
+#---create columns for year, month, day, hour
+
+df_merged$year = as.numeric(format(df_merged$day_time, "%Y", tz="UTC"))
+df_merged$month = as.numeric(format(df_merged$day_time, "%m", tz="UTC"))
+df_merged$day = as.numeric(format(df_merged$day_time, "%d", tz="UTC"))
+df_merged$hour = as.numeric(format(df_merged$day_time, "%H", tz="UTC"))
+
+write_csv(df_merged, "DPH_final.csv")
+                              
+
+```
